@@ -2,8 +2,8 @@ plugins {
     id "java"
 }
 
-group "net.meshmc"
-version "1.0-SNAPSHOT"
+group = "net.meshmc"
+version = loaderVersion
 
 repositories {
     mavenCentral()
@@ -34,6 +34,16 @@ dependencies {
     }
 
     implementation configurations.lib
+
+    lib "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+    lib "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
+    lib "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlinVersion"
+    lib "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
+    lib "org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion"
+    lib "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:$coroutinesVersion"
+    lib "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:$serializationVersion"
+    lib "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:$serializationVersion"
+    lib "org.jetbrains.kotlinx:kotlinx-serialization-cbor-jvm:$serializationVersion"
 }
 
 compileJava {
@@ -56,4 +66,13 @@ jar {
             it.isDirectory() ? it : zipTree(it)
         }
     }
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = "sources"
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives sourcesJar
 }
