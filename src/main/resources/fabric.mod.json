@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "mesh-loader",
+  "version": "${version}",
+  "name": "Mesh Loader",
+  "description": "Mesh is a cross-version minecraft mod platform",
+  "authors": [
+    "Tigermouthbear",
+    "Makrennel"
+  ],
+  "contact": {
+    "homepage": "https://meshmc.net/"
+  },
+  "environment": "*",
+  "entrypoints": {
+    "preLaunch": [
+      "net.meshmc.mesh.loader.MeshFabricLoader"
+    ],
+    "main": [
+      "net.meshmc.mesh.loader.MeshFabricLoader"
+    ]
+  },
+  "mixins": [
+  ],
+  "suggests": {
+    "flamingo": "*"
+  }
+}

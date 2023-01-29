@@ -1,0 +1,59 @@
+plugins {
+    id "java"
+}
+
+group "net.meshmc"
+version "1.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "SpongePowered"
+        url = "https://repo.spongepowered.org/repository/maven-public/"
+    }
+    maven {
+        name = "Fabric"
+        url = "https://maven.fabricmc.net/"
+    }
+}
+
+configurations {
+    lib
+}
+
+dependencies {
+    implementation "net.fabricmc:fabric-loader:0.14.11"
+    implementation "org.spongepowered:mixin:0.8.5-SNAPSHOT"
+    implementation "org.apache.logging.log4j:log4j-api:2.17.2"
+    implementation "com.google.code.gson:gson:2.9.0"
+
+    lib("org.reflections:reflections:0.10.2") {
+        exclude module: "gson"
+        exclude module: "guava"
+        exclude module: "slf4j-api"
+    }
+
+    implementation configurations.lib
+}
+
+compileJava {
+    sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+    options.encoding = "UTF-8"
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+jar {
+    from {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        configurations.lib.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+}
