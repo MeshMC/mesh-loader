@@ -19,10 +19,7 @@ import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -37,8 +34,8 @@ public class MeshLoader {
     private final String gameVersion;
     private final Path gameFolder;
 
-    // list of all mods loaded (and later initialized) into the game
     private final List<Mod> mods = new ArrayList<>();
+    private final Map<Class<?>, Class<?>> interfaces = new HashMap<>();
 
     private boolean loaded = false;
     private boolean initialized = false;
@@ -146,6 +143,22 @@ public class MeshLoader {
             }
         }
 
+        // Scan for all interfaces and add to map for use in initialization
+        reflections = new Reflections(new ConfigurationBuilder()
+                .setUrls(
+                        mods.stream().flatMap(mod -> Arrays.stream(mod.getInterfaces()))
+                                .flatMap(pkg -> ClasspathHelper.forPackage(pkg).stream())
+                                .collect(Collectors.toList())
+                )
+                .setScanners(Scanners.TypesAnnotated)
+        );
+        reflections.getTypesAnnotatedWith(Mod.Interface.class).forEach(clazz -> {
+            if(clazz.getInterfaces().length == 1 && clazz.getConstructors().length == 1
+                    && clazz.getConstructors()[0].getParameters().length == 0) {
+                interfaces.put(clazz.getInterfaces()[0], clazz);
+            } else LOGGER.error("{} has an invalid use of @Mod.Interface", clazz.getName());
+        });
+
         LOGGER.info("Mesh for {} {} loaded {} mods in {} milliseconds!",
                 runtime.name().toLowerCase(), gameVersion,
                 mods.size(), System.currentTimeMillis() - start);
@@ -173,24 +186,6 @@ public class MeshLoader {
 
         long start = System.currentTimeMillis();
 
-        // create map of version interfaces to version implementations
-        HashMap<Class<?>, Class<?>> implMap = new HashMap<>();
-        Reflections reflections = new Reflections(new ConfigurationBuilder()
-            .setUrls(
-                mods.stream().flatMap(mod -> Arrays.stream(mod.getInterfaces()))
-                .flatMap(pkg -> ClasspathHelper.forPackage(pkg).stream())
-                .collect(Collectors.toList())
-            )
-            .setScanners(Scanners.TypesAnnotated)
-        );
-
-        reflections.getTypesAnnotatedWith(Mod.Interface.class).forEach(clazz -> {
-            if(clazz.getInterfaces().length == 1 && clazz.getConstructors().length == 1
-                    && clazz.getConstructors()[0].getParameters().length == 0) {
-               implMap.put(clazz.getInterfaces()[0], clazz);
-            } else LOGGER.error("{} has an invalid use of @Mod.Interface", clazz.getName());
-        });
-
         // do initialization for each mod
         for(Mod mod: mods) {
             for(String className: mod.getInitializers()) {
@@ -204,28 +199,15 @@ public class MeshLoader {
                 // handle mod annotation directives
                 for(Field field: initializer.getClass().getDeclaredFields()) {
                     if(field.isAnnotationPresent(Mod.Interface.class)) {
-                        if(!field.getType().isInterface()) {
-                            LOGGER.error("Field {} in {} must be an interface type", field.getName(), initializer.getClass());
-                            continue;
-                        }
-
-                        Class<?> implClass = implMap.get(field.getType());
-                        if(implClass == null) LOGGER.error("Mod interface {} in {} does not have an implementation", field.getName(), initializer.getClass().getName());
-                        else try {
-                            Object impl = implClass.getConstructors()[0].newInstance();
-
-                            field.setAccessible(true);
-                            if(Modifier.isStatic(field.getModifiers())) field.set(null, impl);
-                            else field.set(initializer, impl);
-                        } catch(Exception e) {
-                            throw new RuntimeException(e);
-                        }
+                        if(Modifier.isStatic(field.getModifiers())) registerStaticInterface(field);
+                        else registerInterface(initializer, field);
                     } else if(field.isAnnotationPresent(Mod.Instance.class) && Modifier.isStatic(field.getModifiers())
                             && field.getType() == initializer.getClass()) {
                         try {
                             field.setAccessible(true);
                             field.set(null, initializer);
-                        } catch(Exception ignored) {
+                        } catch(Exception e) {
+                            throw new RuntimeException(e);
                         }
                     }
                 }
@@ -240,6 +222,42 @@ public class MeshLoader {
                 mods.size(), System.currentTimeMillis() - start);
 
         initialized = true;
+    }
+
+    public void registerInterface(Object object, Field field) {
+        if(!field.getType().isInterface()) {
+            LOGGER.error("Field {} in {} must be an interface type", field.getName(), object.getClass().getName());
+            return;
+        }
+
+        Class<?> iface = interfaces.get(field.getType());
+        if(iface == null) LOGGER.error("Mod interface {} in {} does not have an implementation", field.getName(), object.getClass().getName());
+        else try {
+            Object impl = iface.getConstructors()[0].newInstance();
+            field.setAccessible(true);
+            field.set(object, impl);
+        } catch(Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void registerStaticInterface(Field field) {
+        registerInterface(null, field);
+    }
+
+    public void registerInterfaces(Object object) {
+        for(Field field: object.getClass().getDeclaredFields()) {
+            if(!field.isAnnotationPresent(Mod.Interface.class)) continue;
+            if(Modifier.isStatic(field.getModifiers())) registerStaticInterface(field);
+            else registerInterface(object, field);
+        }
+    }
+
+    public void registerStaticInterfaces(Class<?> clazz) {
+        for(Field field: clazz.getDeclaredFields()) {
+            if(!Modifier.isStatic(field.getModifiers()) || !field.isAnnotationPresent(Mod.Interface.class)) continue;
+            registerStaticInterface(field);
+        }
     }
 
     public Runtime getRuntime() {
