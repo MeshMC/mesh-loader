@@ -68,8 +68,9 @@ jar {
     }
 }
 
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = "sources"
+tasks.register("sourcesJar", Jar) {
+    dependsOn classes
+    setArchiveClassifier("sources")
     from sourceSets.main.allSource
 }
 

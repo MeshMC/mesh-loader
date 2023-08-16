@@ -19,8 +19,8 @@ public class MeshFabricLoader implements ModInitializer, PreLaunchEntrypoint {
         if(gameFolder == null) throw new RuntimeException("Mesh Loader failed to find game folder");
 
         MeshLoader loader = MeshLoader.getOrCreateInstance(MeshLoader.Runtime.FABRIC, gameVersion, gameFolder);
-        loader.getMods().stream().flatMap(mod -> Arrays.stream(mod.getMixins())).forEach(Mixins::addConfiguration);
         loader.load(classLoader);
+        loader.getMods().stream().filter(Mod::isVersionLoaded).flatMap(mod -> Arrays.stream(mod.getMixins())).forEach(Mixins::addConfiguration);
     }
 
     @Override
